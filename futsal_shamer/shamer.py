@@ -75,6 +75,7 @@ def main():
                     futsal_date_str = cleaned_message.split('日程：', 1)[1][:4]
                     futsal_dates[futsal_date_str] = 'booked'
 
+    # TO DO: clean up code below, handle case of multiple dates from the same week, Save last attended date somewhere?
     had_futsal_this_week = 0
     futsal_date = 0
     for date in futsal_dates:
