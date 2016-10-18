@@ -45,13 +45,14 @@ def main():
     oauth.google_authenticate()
 
     # Retrieves all messages received in the past 3 days:
+    logging.debug('Getting emails for: %s', oauth.google_get_email())
     current_date = dt.datetime.today()
     before = current_date.strftime("%Y/%m/%d")
     after = (current_date - dt.timedelta(days=3)).strftime("%Y/%m/%d")
     request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages?q="after:{0} before:{1}"'.format(after, before)
     authorization_header = {"Authorization": "OAuth %s" % oauth.access_token}
     resp = requests.get(request_url, headers=authorization_header)
-    data = resp.json()  # If request is successful then Google returns values as a JSON array
+    data = resp.json()
 
     # Extract futsal event dates from email message body, to check date of last event.
     futsal_dates = {}
@@ -61,7 +62,7 @@ def main():
         resp = requests.get(request_url, headers=authorization_header)  # get raw email data
 
         if resp.status_code == 200:
-            data = json.loads(resp.text)
+            data = json.loads(resp.text)  # requests' json() method seems to have issues handling this response
             decoded_raw_text = base64.urlsafe_b64decode(data['raw'])
             parsed_raw_text = email.message_from_bytes(decoded_raw_text)
 
@@ -83,7 +84,7 @@ def main():
             had_futsal_this_week = -1
 
     if had_futsal_this_week == -1:
-        message = 'Someone has been a naughty boy. Has not been to futsal for a week. Last futsal was on {0}'.format(
+        message = 'Someone has been a naughty boy. Has not been to futsal for a week. Last futsal was on {0}.'.format(
             futsal_date.strftime('%Y/%m/%d'))
         # Setup Hangouts bot instance, connect and send message.
         hangouts = HangoutsClient(config_path, message)
