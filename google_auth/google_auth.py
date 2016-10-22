@@ -118,7 +118,7 @@ class GoogleAuth(object):
             token_request_data['access_type'] = 'offline'
 
         # Make token request to Google.
-        resp = requests.post(self.access_token_url, data=token_request_data)
+        resp = requests.post(self.token_url, data=token_request_data)
         # If request is successful then Google returns values as a JSON array
         values = resp.json()
         self.access_token = values['access_token']
