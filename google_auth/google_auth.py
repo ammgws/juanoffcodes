@@ -24,6 +24,13 @@ class GoogleAuth(object):
         self.client_secret = self.config.get(self.service, 'client_secret')
         self.refresh_token = self.config.get(self.service, 'refresh_token')
 
+        # Get latest OAUTH2 info from Google
+        google_info = requests.get('https://accounts.google.com/.well-known/openid-configuration')
+        google_params = google_info.json()
+        self.authorize_url = google_params.get('authorization_endpoint')
+        self.token_url = google_params.get('token_endpoint')
+        self.userinfo_url = google_params.get('userinfo_endpoint')
+
     def google_authenticate(self):
         """ Get access token. Note that Google access tokens expire in 3600 seconds."""
         # Authenticate with Google and get access token.
@@ -62,7 +69,8 @@ class GoogleAuth(object):
 
         # Start by getting authorization_code for Hangouts scope.
         # Email scope is used to get email address for Hangouts login.
-        oauth2_login_url = 'https://accounts.google.com/o/oauth2/v2/auth?{}'.format(
+        oauth2_login_url = '{0}?{1}'.format(
+            self.authorize_url,
             urlencode(dict(
                 client_id=self.client_id,
                 scope=self.oauth2_scope,
@@ -110,8 +118,7 @@ class GoogleAuth(object):
             token_request_data['access_type'] = 'offline'
 
         # Make token request to Google.
-        oauth2_token_request_url = 'https://www.googleapis.com/oauth2/v4/token'
-        resp = requests.post(oauth2_token_request_url, data=token_request_data)
+        resp = requests.post(self.access_token_url, data=token_request_data)
         # If request is successful then Google returns values as a JSON array
         values = resp.json()
         self.access_token = values['access_token']
@@ -123,8 +130,7 @@ class GoogleAuth(object):
     def google_get_email(self):
         """Get client's email address."""
         authorization_header = {"Authorization": "OAuth %s" % self.access_token}
-        resp = requests.get("https://www.googleapis.com/oauth2/v2/userinfo",
-                            headers=authorization_header)
+        resp = requests.get(self.userinfo_url, headers=authorization_header)
         # If request is successful then Google returns values as a JSON array
         values = resp.json()
         return values['email']
