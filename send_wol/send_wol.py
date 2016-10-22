@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Send a WOl magic packet. Works on both Linux and Windows.
+Send a WOL magic packet. Works on both Linux and Windows.
 
 @author: ammgws
 """
