@@ -56,33 +56,45 @@ def main():
 
     # Extract futsal event dates from email message body, to check date of last event.
     futsal_dates = {}
-    for message in data['messages']:
-        request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages/{0}?format=raw'.format(message['id'])
-        authorization_header = {"Authorization": "OAuth %s" % oauth.access_token}
-        resp = requests.get(request_url, headers=authorization_header)  # get raw email data
+    if 'messages' in data:
+        for message in data['messages']:
+            request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages/{0}?format=raw'.format(message['id'])
+            authorization_header = {"Authorization": "OAuth %s" % oauth.access_token}
+            resp = requests.get(request_url, headers=authorization_header)  # get raw email data
 
-        if resp.status_code == 200:
-            data = json.loads(resp.text)  # requests' json() method seems to have issues handling this response
-            decoded_raw_text = base64.urlsafe_b64decode(data['raw'])
-            parsed_raw_text = email.message_from_bytes(decoded_raw_text)
+            if resp.status_code == 200:
+                data = json.loads(resp.text)  # requests' json() method seems to have issues handling this response
+                decoded_raw_text = base64.urlsafe_b64decode(data['raw'])
+                parsed_raw_text = email.message_from_bytes(decoded_raw_text)
 
-            for part in parsed_raw_text.walk():
-                decoded_message = part.get_payload(decode=True)
-                if decoded_message:
-                    # strip html tags, using http://stackoverflow.com/a/4869782
-                    cleaned_message = re.sub('<[^<]+?>', '', decoded_message.decode('utf-8'))
-                    # get futsal event date part of string
-                    futsal_date_str = cleaned_message.split('日程：', 1)[1][:4]
-                    futsal_dates[futsal_date_str] = 'booked'
+                for part in parsed_raw_text.walk():
+                    decoded_message = part.get_payload(decode=True)
+                    if decoded_message:
+                        # strip html tags, using http://stackoverflow.com/a/4869782
+                        cleaned_message = re.sub('<[^<]+?>', '', decoded_message.decode('utf-8'))
+                        # get futsal event date part of string
+                        date_prefixes = ['第１希望：', '日程：']
+                        for prefix in date_prefixes:
+                            try:
+                                futsal_date_str = cleaned_message.split(prefix, 1)[1][:5]
+                            except IndexError:
+                                pass
+                        futsal_dates[futsal_date_str] = 'booked'
 
-    # TO DO: clean up code below, handle case of multiple dates from the same week, Save last attended date somewhere?
-    had_futsal_this_week = 0
-    futsal_date = 0
-    for date in futsal_dates:
-        # futsal confirmation email doesn't include the year, but we can assume any mails are from current year for now
-        futsal_date = dt.datetime.strptime(date, "%m/%d").replace(year=current_date.year).date()
-        if futsal_date < (current_date - dt.timedelta(days=5)).date():
-            had_futsal_this_week = -1
+                # TO DO: clean up code below, handle case of multiple dates from the same week, save last attended date somewhere?
+                had_futsal_this_week = 0
+                futsal_date = 0
+                for date in futsal_dates:
+                    # futsal confirmation email doesn't include the year, but assume mails are from current year for now
+                    futsal_date = dt.datetime.strptime(date, "%m/%d").replace(year=current_date.year).date()
+                    if futsal_date < (current_date - dt.timedelta(days=5)).date():
+                        had_futsal_this_week = -1
+    else:
+        logging.info('No mails found from the past week')
+        # did not find any mails, so must not have booked futsal
+        had_futsal_this_week = -1
+        # haven't added option to save last date yet, so just placeholder for now:
+        futsal_date = current_date - dt.timedelta(days=3)
 
     if had_futsal_this_week == -1:
         message = 'Someone has been a naughty boy. Has not been to futsal for a week. Last futsal was on {0}.'.format(
@@ -95,6 +107,8 @@ def main():
             logging.info("Finished sending message")
         else:
             logging.error('Unable to connect to Hangouts.')
+    else:
+        logging.info('Went to futsal in the past week - no need to send shaming message!')
 
 
 if __name__ == '__main__':
