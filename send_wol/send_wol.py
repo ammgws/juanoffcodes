@@ -6,8 +6,9 @@ Send a WOL magic packet. Works on both Linux and Windows.
 """
 from socket import socket, AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
 
+
 def send_magic_packet(mac_address, broadcast_address, port=9):
-    ''' Send a WOL magic packet for the specified MAC address'''
+    """ Send a WOL magic packet for the specified MAC address"""
     # Create an IPv4, UDP socket
     sock = socket(family=AF_INET, type=SOCK_DGRAM)
     # Enable sending datagrams to broadcast addresses
@@ -24,6 +25,7 @@ def send_magic_packet(mac_address, broadcast_address, port=9):
     else:
         ack = 'NAK'
     return ack
+
 
 def main():
     result = send_magic_packet('xx:xx:xx:xx:xx:xx', 'xx.xx.xx.xx')
