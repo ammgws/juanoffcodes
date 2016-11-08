@@ -21,6 +21,17 @@ from hangoutsclient import HangoutsClient
 CWD = path[0]  # pylint: disable=C0103
 
 
+def get_soccer_dates():
+    """
+    Generator that returns datetime object for each soccer match date found in local file.
+    soccer.txt should have match dates in YYYYMMDD format with each on a new line.
+    """
+    with open(os.path.join(CWD, 'soccer.txt'), 'r') as f:
+        soccer_dates = f.readlines()
+    for date_str in soccer_dates:
+        yield dt.datetime.strptime(date_str.strip(), '%Y%m%d').date()
+
+
 def main():
     """
     Check Gmail for futsal confirmation emails, and send 'shame' message on Hangouts if haven't been in the past week.
@@ -44,18 +55,18 @@ def main():
     oauth = GoogleAuth(config_path, oauth2_scope, service='Gmail')
     oauth.google_authenticate()
 
-    # Retrieves all messages received in the past 3 days:
+    # Retrieves all messages received in the past 7 days:
     logging.debug('Getting emails for: %s', oauth.google_get_email())
     current_date = dt.datetime.today()
-    before = current_date.strftime("%Y/%m/%d")
-    after = (current_date - dt.timedelta(days=3)).strftime("%Y/%m/%d")
-    request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages?q="after:{0} before:{1}"'.format(after, before)
+    after = (current_date - dt.timedelta(days=7)).strftime('%Y/%m/%d')
+    request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages?q="after:{0}"'.format(after)
     authorization_header = {"Authorization": "OAuth %s" % oauth.access_token}
     resp = requests.get(request_url, headers=authorization_header)
     data = resp.json()
 
     # Extract futsal event dates from email message body, to check date of last event.
-    futsal_dates = {}
+    event_dates = list(get_soccer_dates())  # initialise with soccer match dates, since won't have futsal those days
+    had_event_this_week = 0
     if 'messages' in data:
         for message in data['messages']:
             request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages/{0}?format=raw'.format(message['id'])
@@ -64,6 +75,7 @@ def main():
 
             if resp.status_code == 200:
                 data = json.loads(resp.text)  # requests' json() method seems to have issues handling this response
+                email_datetime = dt.datetime.fromtimestamp(int(data['internalDate'])/1000)  # get epoch time in seconds
                 decoded_raw_text = base64.urlsafe_b64decode(data['raw'])
                 parsed_raw_text = email.message_from_bytes(decoded_raw_text)
 
@@ -77,28 +89,26 @@ def main():
                         for prefix in date_prefixes:
                             try:
                                 futsal_date_str = cleaned_message.split(prefix, 1)[1][:5]
+                                # futsal confirmation email doesn't include the year, so assume the year from the email timestamp
+                                futsal_date = dt.datetime.strptime(futsal_date_str, "%m/%d").replace(year=email_datetime.year).date()
+                                event_dates.append(futsal_date)
                             except IndexError:
                                 pass
-                        futsal_dates[futsal_date_str] = 'booked'
 
                 # TO DO: clean up code below, handle case of multiple dates from the same week, save last attended date somewhere?
-                had_futsal_this_week = 0
-                futsal_date = 0
-                for date in futsal_dates:
-                    # futsal confirmation email doesn't include the year, but assume mails are from current year for now
-                    futsal_date = dt.datetime.strptime(date, "%m/%d").replace(year=current_date.year).date()
-                    if futsal_date < (current_date - dt.timedelta(days=5)).date():
-                        had_futsal_this_week = -1
+                for date in event_dates:
+                    if date < (current_date - dt.timedelta(days=5)).date():
+                        had_event_this_week = -1
     else:
         logging.info('No mails found from the past week')
         # did not find any mails, so must not have booked futsal
-        had_futsal_this_week = -1
+        had_event_this_week = -1
         # haven't added option to save last date yet, so just placeholder for now:
-        futsal_date = current_date - dt.timedelta(days=3)
+        last_event = current_date - dt.timedelta(days=3)
 
-    if had_futsal_this_week == -1:
-        message = 'Someone has been a naughty boy. Has not been to futsal for a week. Last futsal was on {0}.'.format(
-            futsal_date.strftime('%Y/%m/%d'))
+    if had_event_this_week == -1:
+        message = 'Someone has been naughty. Has not been to futsal or soccer for a week. Last event was on {0}.'.format(
+            last_event.strftime('%Y/%m/%d'))
         # Setup Hangouts bot instance, connect and send message.
         hangouts = HangoutsClient(config_path, message)
         if hangouts.connect(address=('talk.google.com', 5222),
@@ -108,7 +118,7 @@ def main():
         else:
             logging.error('Unable to connect to Hangouts.')
     else:
-        logging.info('Went to futsal in the past week - no need to send shaming message!')
+        logging.info('Went to event in the past week - no need to send shaming message!')
 
 
 if __name__ == '__main__':
