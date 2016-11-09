@@ -9,7 +9,6 @@ import json
 import logging
 import os.path
 import re
-from configparser import ConfigParser
 from sys import path
 # Third party imports
 import requests
@@ -42,11 +41,6 @@ def main():
 
     # Path to config file
     config_path = os.path.join(CWD, 'futsal.ini')
-
-    # Read in config values
-    config = ConfigParser()
-    config.read(config_path)
-    config_path = config_path
     logging.debug('Using config file: %s', config_path)
 
     # Setup Google OAUTH instance for acccessing Gmail
