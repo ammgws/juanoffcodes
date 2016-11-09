@@ -46,15 +46,15 @@ def main():
     """
 
     # Path to config file
-    config_path = os.path.join(CWD, 'hangouts.ini')
+    config_path = os.path.join(CWD, 'linkgrabber.ini')
+    logging.debug('Using config file: %s', config_path)
 
     # Read in config values
     config = ConfigParser()
     config.read(config_path)
-    config_path = config_path
-    logging.debug('Using config file: %s', config_path)
+    chat_partner = config.get('Settings', 'chat_partner')  # Name or email of the chat partner to search chat logs for
 
-    # Setup Google OAUTH instance for acccessing Gmail
+    # Setup Google OAUTH instance for accessing Gmail
     oauth2_scope = ('https://www.googleapis.com/auth/gmail.readonly '
                     'https://www.googleapis.com/auth/userinfo.email')
     oauth = GoogleAuth(config_path, oauth2_scope, service='Gmail')
@@ -63,13 +63,13 @@ def main():
     # Get email address so we can filter out messages sent by user later on
     user = oauth.google_get_email()
 
-    # Retrieves all Hangouts chat messages received during 8.30AM and 17.30PM on the current date:
+    # Retrieves all Hangouts chat messages received during 8.30AM and 17.30PM on the current day
     logging.debug('Getting emails for: %s', user)
     current_date = dt.datetime.today()
     before = int(current_date.replace(hour=17, minute=30).timestamp())
     after = int(current_date.replace(hour=8, minute=30).timestamp())
-    request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages?q="in:chats after:{0} before:{1}"'.format(
-        after, before)
+    request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages?q="in:chats after:{0} before:{1} from:{2}"'.format(
+        after, before, chat_partner)
     authorization_header = {"Authorization": "OAuth %s" % oauth.access_token}
     resp = requests.get(request_url, headers=authorization_header)
     data = resp.json()
@@ -90,6 +90,7 @@ def main():
                 # get message text
                 decoded_raw_text = base64.urlsafe_b64decode(data['payload']['body']['data']).decode('utf-8')
 
+                # ignore messages sent by us, we only want links that chat partner has sent
                 if user not in sender and 'href' in decoded_raw_text:
                     parser.feed(decoded_raw_text)
                     link = parser.link
