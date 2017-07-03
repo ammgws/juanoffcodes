@@ -7,10 +7,12 @@ import datetime as dt
 import json
 import logging
 import os.path
+from argparse import ArgumentParser
 from configparser import ConfigParser
 from html.parser import HTMLParser
 from sys import path
 # Third party imports
+import click
 import requests
 # Custom imports
 from google_auth import GoogleAuth
@@ -37,9 +39,25 @@ class LinkParser(HTMLParser):
         pass
 
 
-def main():
+def validate_time(ctx, param, time_str):
+    try:
+        time = dt.datetime.strptime(time_str, "%H%M")
+    except ValueError:
+        raise click.BadParameter('Time should be in HHMM format')
+    return time
+
+
+@click.command()
+@click.option('--after', '-a', default='0830',
+              callback=validate_time, expose_value=True,
+              help='"after" time in hhmm format. Default 0830.')
+@click.option('--before', '-b', default='1730',
+              callback=validate_time, expose_value=True,
+              help='"before" time in hhmm format. Default 1730.')
+def main(before, after):
     """
-    Check Gmail for Hangouts chat messages, and check for any links inside.
+    Catch up on links sent during the day from a specified Hangouts contact.
+    Hangouts messages are parsed through Gmail API.
 
     OAuth for devices doesn't support Hangouts or Gmail scopes, so have to send auth link through the terminal.
     https://developers.google.com/identity/protocols/OAuth2ForDevices
@@ -66,12 +84,14 @@ def main():
     # Retrieves all Hangouts chat messages received during 8.30AM and 17.30PM on the current day
     logging.debug('Getting emails for: %s', user)
     current_date = dt.datetime.today()
-    before = int(current_date.replace(hour=17, minute=30).timestamp())
-    after = int(current_date.replace(hour=8, minute=30).timestamp())
-    request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages?q="in:chats after:{0} before:{1} from:{2}"'.format(
-        after, before, chat_partner)
+    before_timestamp = int(current_date.replace(hour=before.hour, minute=before.minute).timestamp())
+    after_timestamp = int(current_date.replace(hour=after.hour, minute=after.minute).timestamp())
+    request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages?q="after:{0} before:{1} from:{2}"'.format(
+        after_timestamp, before_timestamp, chat_partner)
+    logging.debug('URL for chat log search: %s', request_url)
     authorization_header = {"Authorization": "OAuth %s" % oauth.access_token}
     resp = requests.get(request_url, headers=authorization_header)
+    logging.debug('Authorisation result: %s', resp.status_code)
     data = resp.json()
 
     # Extract links from chat logs
@@ -82,13 +102,18 @@ def main():
             request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages/{0}?'.format(message['id'])
             authorization_header = {"Authorization": "OAuth %s" % oauth.access_token}
             resp = requests.get(request_url, headers=authorization_header)  # get message data
+            logging.debug('Message query result: %s', resp.status_code)
 
             if resp.status_code == 200:
                 data = json.loads(resp.text)  # requests' json() method seems to have issues handling this response
-                # get message sender
                 sender = data['payload']['headers'][0]['value']
-                # get message text
-                decoded_raw_text = base64.urlsafe_b64decode(data['payload']['body']['data']).decode('utf-8')
+                # Since the gmail API doesn't appear to support the 'in:chats/is:chat' query anymore,
+                # we end up pulling both emails and chat messages, but the data structures are different so
+                # wrapping this in a try-except as a quick-and-dirty fix to ignore all email messages
+                try:
+                    decoded_raw_text = base64.urlsafe_b64decode(data['payload']['body']['data']).decode('utf-8')
+                except KeyError:
+                    break
 
                 # ignore messages sent by us, we only want links that chat partner has sent
                 if user not in sender and 'href' in decoded_raw_text:
@@ -112,7 +137,7 @@ def main():
         logging.info('No new links!')
 
 
-if __name__ == '__main__':
+def configure_logging():
     # Configure root logger. Level 5 = verbose to catch mostly everything.
     logger = logging.getLogger()
     logger.setLevel(level=5)
@@ -128,4 +153,7 @@ if __name__ == '__main__':
     # Quieten SleekXMPP output
     # logging.getLogger('sleekxmpp.xmlstream.xmlstream').setLevel(logging.INFO)
 
+
+if __name__ == '__main__':
+    configure_logging()
     main()
