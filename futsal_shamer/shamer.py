@@ -30,7 +30,7 @@ def get_soccer_dates(config_path):
 
 
 @click.command()
-@click.option('--config_path', '-c', default=os.path.expanduser('~/.config/wynbot'), type=click.Path(exists=True),
+@click.option('--config_path', '-c', default=os.path.expanduser('~/.config/futsal_shamer'), type=click.Path(exists=True),
               help='path to directory containing config file.')
 def main(config_path):
     """
