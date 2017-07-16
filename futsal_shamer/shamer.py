@@ -11,6 +11,7 @@ import os.path
 import re
 from sys import path
 # Third party imports
+import click
 import requests
 # Custom imports
 from google_auth import GoogleAuth
@@ -31,22 +32,24 @@ def get_soccer_dates():
         yield dt.datetime.strptime(date_str.strip(), '%Y%m%d').date()
 
 
-def main():
+@click.command()
+@click.option('--config_path', '-c', default=os.path.expanduser('~/.config/wynbot'), type=click.Path(exists=True), help='path to directory containing config file.')
+def main(config_path):
     """
     Check Gmail for futsal confirmation emails, and send 'shame' message on Hangouts if haven't been in the past week.
 
     OAuth for devices doesn't support Hangouts or Gmail scopes, so have to send auth link through the terminal.
     https://developers.google.com/identity/protocols/OAuth2ForDevices
     """
+    configure_logging(config_path)
 
-    # Path to config file
-    config_path = os.path.join(CWD, 'futsal.ini')
-    logging.debug('Using config file: %s', config_path)
+    config_file = os.path.join(config_path, 'wynbot.ini')
+    logging.debug('Using config file: %s', config_file)
 
     # Setup Google OAUTH instance for acccessing Gmail
     oauth2_scope = ('https://www.googleapis.com/auth/gmail.readonly '
                     'https://www.googleapis.com/auth/userinfo.email')
-    oauth = GoogleAuth(config_path, oauth2_scope, service='Gmail')
+    oauth = GoogleAuth(config_file, oauth2_scope, service='Gmail')
     oauth.google_authenticate()
 
     # Retrieves all messages received in the past 7 days:
@@ -104,7 +107,7 @@ def main():
         message = 'Someone has been naughty. Has not been to futsal or soccer for a week. Last event was on {0}.'.format(
             last_event.strftime('%Y/%m/%d'))
         # Setup Hangouts bot instance, connect and send message.
-        hangouts = HangoutsClient(config_path, message)
+        hangouts = HangoutsClient(config_file, message)
         if hangouts.connect(address=('talk.google.com', 5222),
                             reattempt=True, use_tls=True):
             hangouts.process(block=True)
@@ -115,12 +118,19 @@ def main():
         logging.info('Went to event in the past week - no need to send shaming message!')
 
 
-if __name__ == '__main__':
+def configure_logging(config_path):
     # Configure root logger. Level 5 = verbose to catch mostly everything.
     logger = logging.getLogger()
     logger.setLevel(level=5)
+
+    log_folder = os.path.join(config_path, 'logs')
+    if not os.path.exists(log_folder):
+        os.makedirs(log_folder, exist_ok=True)
+
     log_filename = 'futsal_{0}.log'.format(dt.datetime.now().strftime('%Y%m%d_%Hh%Mm%Ss'))
-    log_handler = logging.FileHandler(os.path.join(CWD, 'logs', log_filename))
+    log_filepath = os.path.join(log_folder, log_filename)
+    log_handler = logging.FileHandler(log_filepath)
+
     log_format = logging.Formatter(
         fmt='%(asctime)s.%(msecs).03d %(name)-12s %(levelname)-8s %(message)s (%(filename)s:%(lineno)d)',
         datefmt='%Y-%m-%d %H:%M:%S')
@@ -131,4 +141,6 @@ if __name__ == '__main__':
     # Quieten SleekXMPP output
     # logging.getLogger('sleekxmpp.xmlstream.xmlstream').setLevel(logging.INFO)
 
+
+if __name__ == '__main__':
     main()
