@@ -17,23 +17,21 @@ import requests
 from google_auth import GoogleAuth
 from hangoutsclient import HangoutsClient
 
-# Get absolute path of the dir script is run from
-CWD = path[0]  # pylint: disable=C0103
 
-
-def get_soccer_dates():
+def get_soccer_dates(config_path):
     """
     Generator that returns datetime object for each soccer match date found in local file.
     soccer.txt should have match dates in YYYYMMDD format with each on a new line.
     """
-    with open(os.path.join(CWD, 'soccer.txt'), 'r') as f:
+    with open(os.path.join(config_path, 'soccer.txt'), 'r') as f:
         soccer_dates = f.readlines()
     for date_str in soccer_dates:
         yield dt.datetime.strptime(date_str.strip(), '%Y%m%d').date()
 
 
 @click.command()
-@click.option('--config_path', '-c', default=os.path.expanduser('~/.config/wynbot'), type=click.Path(exists=True), help='path to directory containing config file.')
+@click.option('--config_path', '-c', default=os.path.expanduser('~/.config/wynbot'), type=click.Path(exists=True),
+              help='path to directory containing config file.')
 def main(config_path):
     """
     Check Gmail for futsal confirmation emails, and send 'shame' message on Hangouts if haven't been in the past week.
@@ -62,7 +60,7 @@ def main(config_path):
     data = resp.json()
 
     # Extract futsal event dates from email message body, to check date of last event.
-    event_dates = list(get_soccer_dates())  # initialise with soccer match dates, since won't have futsal those days
+    event_dates = list(get_soccer_dates(config_path))  # initialise with soccer match dates, since won't have futsal those days
     had_event_this_week = 0
     if 'messages' in data:
         for message in data['messages']:
