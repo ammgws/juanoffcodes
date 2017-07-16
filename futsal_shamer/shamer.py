@@ -28,31 +28,56 @@ def get_soccer_dates(config_path):
         yield dt.datetime.strptime(date_str.strip(), '%Y%m%d').date()
 
 
+def get_last_date(config_path):
+    """
+    Get the date of last attended event from the last time this script was run.
+    """
+    try:
+        with open(os.path.join(config_path, 'last_date.txt'), 'r') as f:
+            last_date = f.readline()
+    except IOError as e:
+        # TODO: better return value
+        return None
+    return dt.datetime.strptime(last_date.strip(), '%Y%m%d').date()
+
+
+def parse_loglevel(ctx, param, log_level_str):
+    log_levels = {'debug': logging.DEBUG,
+                  'info': logging.INFO,
+                  'warning': logging.WARNING,
+                  'error': logging.ERROR,
+                  }
+    return log_levels[log_level_str]
+
+
 @click.command()
 @click.option('--config_path', '-c', default=os.path.expanduser('~/.config/futsal_shamer'), type=click.Path(exists=True),
               help='path to directory containing config file.')
-def main(config_path):
+@click.option('--cut_off', '-c', default=7, help='Number of days to allow between attended events before shaming.')
+@click.option('--log_level', '-l', callback=parse_loglevel, expose_value=True,
+              default='debug', type=click.Choice(['debug', 'info', 'warning', 'error']), help='Set log level.')
+def main(config_path, cut_off, log_level):
     """
     Check Gmail for futsal confirmation emails, and send 'shame' message on Hangouts if haven't been in the past week.
 
     OAuth for devices doesn't support Hangouts or Gmail scopes, so have to send auth link through the terminal.
     https://developers.google.com/identity/protocols/OAuth2ForDevices
     """
-    configure_logging(config_path)
+    configure_logging(config_path, log_level)
 
-    config_file = os.path.join(config_path, 'wynbot.ini')
+    config_file = os.path.join(config_path, 'futsal.ini')
     logging.debug('Using config file: %s', config_file)
 
     # Setup Google OAUTH instance for acccessing Gmail
     oauth2_scope = ('https://www.googleapis.com/auth/gmail.readonly '
                     'https://www.googleapis.com/auth/userinfo.email')
     oauth = GoogleAuth(config_file, oauth2_scope, service='Gmail')
-    oauth.google_authenticate()
+    oauth.authenticate()
 
-    # Retrieves all messages received in the past 7 days:
-    logging.debug('Getting emails for: %s', oauth.google_get_email())
+    # Retrieves all messages received in the past x days:
+    logging.debug('Getting emails for: %s', oauth.get_email())
     current_date = dt.datetime.today()
-    after = (current_date - dt.timedelta(days=7)).strftime('%Y/%m/%d')
+    after = (current_date - dt.timedelta(days=cut_off)).strftime('%Y/%m/%d')
     request_url = 'https://www.googleapis.com/gmail/v1/users/me/messages?q="after:{0}"'.format(after)
     authorization_header = {"Authorization": "OAuth %s" % oauth.access_token}
     resp = requests.get(request_url, headers=authorization_header)
@@ -89,20 +114,23 @@ def main(config_path):
                             except IndexError:
                                 pass
 
-                # TO DO: clean up code below, handle case of multiple dates from the same week, save last attended date somewhere?
+                # TODO: clean up code below, handle case of multiple dates from the same week
                 for date in event_dates:
-                    if date < (current_date - dt.timedelta(days=5)).date():
+                    if date < (current_date - dt.timedelta(days=cut_off)).date():
                         had_event_this_week = -1
     else:
-        logging.info('No mails found from the past week')
         # did not find any mails, so must not have booked futsal
+        logging.info('No mails found from the past week')
         had_event_this_week = -1
-        # haven't added option to save last date yet, so just placeholder for now:
-        last_event = current_date - dt.timedelta(days=3)
+
+    last_event = get_last_date(config_path)
+    if last_event >= (current_date - dt.timedelta(days=cut_off)).date():
+                        had_event_this_week = 0
 
     if had_event_this_week == -1:
-        message = 'Someone has been naughty. Has not been to futsal or soccer for a week. Last event was on {0}.'.format(
+        message = 'Someone has been naughty. Last attended futsal or soccer was on {0}.'.format(
             last_event.strftime('%Y/%m/%d'))
+
         # Setup Hangouts bot instance, connect and send message.
         hangouts = HangoutsClient(config_file, message)
         if hangouts.connect(address=('talk.google.com', 5222),
@@ -114,11 +142,16 @@ def main(config_path):
     else:
         logging.info('Went to event in the past week - no need to send shaming message!')
 
+    if max(event_dates) > last_event:
+        last_event = max(event_dates)
+    with open(os.path.join(config_path, 'last_date.txt'), 'w') as f:
+        f.write(last_event.strftime('%Y%m%d'))
 
-def configure_logging(config_path):
-    # Configure root logger. Level 5 = verbose to catch mostly everything.
+
+def configure_logging(config_path, log_level):
+    # Configure root logger.
     logger = logging.getLogger()
-    logger.setLevel(level=5)
+    logger.setLevel(level=log_level)
 
     log_folder = os.path.join(config_path, 'logs')
     if not os.path.exists(log_folder):
