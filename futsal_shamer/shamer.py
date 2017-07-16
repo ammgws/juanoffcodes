@@ -9,7 +9,6 @@ import json
 import logging
 import os.path
 import re
-from sys import path
 # Third party imports
 import click
 import requests
