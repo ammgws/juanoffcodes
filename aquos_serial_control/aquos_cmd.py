@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Aquos_cmd - control Sharp Aquos TV through serial port
+"""Aquos_cmd - control Sharp Aquos TV through serial port.
+
+To use these commands with Yatse (Kodi remote control app for Android), create a Custom Command in Yatse:
+RunScript(special://home/addons/aquous_serial_control/aquos_cmd.py, -h)
+* Copy aquos_serial_control into the ~/.kodi/addons/ directory
 
 テレビの「クイック起動」を有効にしないとリモコンでテレビを消した時にRS232でONコマンドを送信してもERRになる
 
