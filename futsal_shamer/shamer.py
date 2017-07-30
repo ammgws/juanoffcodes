@@ -9,6 +9,7 @@ import json
 import logging
 import os.path
 import re
+from time import sleep
 # Third party imports
 import click
 import requests
@@ -83,7 +84,7 @@ def main(config_path, cut_off, log_level):
     resp = requests.get(request_url, headers=authorization_header)
     data = resp.json()
 
-    # Extract futsal event dates from email message body, to check date of last event.
+    # Extract futsal event dates from email message body to check date of last event.
     event_dates = list(get_soccer_dates(config_path))  # initialise with soccer match dates, since won't have futsal those days
     had_event_this_week = 0
     if 'messages' in data:
@@ -132,10 +133,13 @@ def main(config_path, cut_off, log_level):
             last_event.strftime('%Y/%m/%d'))
 
         # Setup Hangouts bot instance, connect and send message.
-        hangouts = HangoutsClient(config_file, message)
+        hangouts = HangoutsClient(config_file)
         if hangouts.connect(address=('talk.google.com', 5222),
                             reattempt=True, use_tls=True):
-            hangouts.process(block=True)
+            hangouts.process(block=False)
+            sleep(5)  # need time for Hangouts roster to update
+            hangouts.send_to_all(message)
+            hangouts.disconnect(wait=True)
             logging.info("Finished sending message")
         else:
             logging.error('Unable to connect to Hangouts.')
