@@ -12,7 +12,6 @@ from bs4 import BeautifulSoup
              )
 def main(key):
     url = "https://en.wikipedia.org/wiki/List_of_Batman_children's_books"
-    ratings_url = f"https://www.goodreads.com/book/review_counts.json?key={key}&isbns="
     r = requests.get(url)
     soup = BeautifulSoup(r.content, 'lxml')
     table = soup.find("table", attrs={'class': 'wikitable'})
@@ -38,4 +37,3 @@ def main(key):
 
 if __name__ == "__main__":
     main()
-
