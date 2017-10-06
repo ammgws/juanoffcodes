@@ -18,6 +18,8 @@ import requests
 from google_auth import GoogleAuth
 from hangoutsclient import HangoutsClient
 
+APP_NAME = 'futsal_shamer'
+
 
 def get_soccer_dates(config_path):
     """Generator that returns datetime object for each soccer match date found in local file.
