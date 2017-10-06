@@ -25,7 +25,7 @@ def get_soccer_dates(config_path):
     """Generator that returns datetime object for each soccer match date found in local file.
     soccer.txt should have match dates in YYYYMMDD format with each on a new line.
     """
-    with open(os.path.join(config_path, 'soccer.txt'), 'r') as f:
+    with open(os.path.join(config_path, 'soccer.txt')) as f:
         soccer_dates = f.readlines()
     for date_str in soccer_dates:
         yield dt.datetime.strptime(date_str.strip(), '%Y%m%d').date()
@@ -35,8 +35,8 @@ def get_last_date(cache_path):
     """Get the date of last attended event from the last time this script was run.
     """
     try:
-        with open(os.path.join(config_path, 'last_date.txt'), 'r') as f:
             last_date = f.readline()
+        with open(os.path.join(cache_path, 'last_date')) as f:
     except IOError as e:
         # TODO: better return value
         return None
