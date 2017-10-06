@@ -57,6 +57,23 @@ def parse_loglevel(ctx, param, log_level_str):
     return log_levels[log_level_str]
 
 
+def validate_cutoff(ctx, param, cut_off):
+    if cut_off < 0:
+        raise click.BadParameter('Cut-off must be a positive integer.')
+    else:
+        return cut_off
+
+
+def validate_date(ctx, param, date):
+    try:
+        dt.datetime.strptime(date, '%Y%m%d')
+    except ValueError:
+        raise click.BadParameter('Date should be in YYYYMMDD format')
+    except TypeError:
+        # TODO: Click seems to use callback even if option is not supplied when run.
+        #       This means that this date validation will fail when last-date is not given as date will be None...
+        return date
+    return date
 
 
 def create_dir(ctx, param, directory):
@@ -79,6 +96,25 @@ def create_dir(ctx, param, directory):
     default=os.path.join(os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache')), APP_NAME),
     callback=create_dir,
     help='Path to directory to store logs and such. Defaults to XDG cache dir.',
+)
+@click.option(
+    '--cut-off',
+    default=7,
+    callback=validate_cutoff, expose_value=True,
+    help='Number of days to allow between attended events before shaming.',
+)
+@click.option(
+    '--last-date',
+    type=click.STRING,
+    callback=validate_date, expose_value=True,
+    help='Date of last event.',
+)
+@click.option(
+    '--log-level',
+    type=click.Choice(['debug', 'info', 'warning', 'error']),
+    callback=parse_loglevel, expose_value=True,
+    default='debug',
+    help='Set log level.',
 )
 def main(config_path, cache_path, cut_off, last_date, log_level):
     """Check Gmail for futsal confirmation emails and send 'shame' message on Hangouts if haven't been in the past week.
