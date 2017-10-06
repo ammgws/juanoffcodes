@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Imports from Python Standard Library
+# Standard Library
 import base64
 import datetime as dt
 import email
@@ -10,17 +10,15 @@ import logging
 import os.path
 import re
 from time import sleep
-# Third party imports
+# Third party
 import click
 import requests
-# Custom imports
 from google_auth import GoogleAuth
 from hangoutsclient import HangoutsClient
 
 
 def get_soccer_dates(config_path):
-    """
-    Generator that returns datetime object for each soccer match date found in local file.
+    """Generator that returns datetime object for each soccer match date found in local file.
     soccer.txt should have match dates in YYYYMMDD format with each on a new line.
     """
     with open(os.path.join(config_path, 'soccer.txt'), 'r') as f:
@@ -29,9 +27,8 @@ def get_soccer_dates(config_path):
         yield dt.datetime.strptime(date_str.strip(), '%Y%m%d').date()
 
 
-def get_last_date(config_path):
-    """
-    Get the date of last attended event from the last time this script was run.
+def get_last_date(cache_path):
+    """Get the date of last attended event from the last time this script was run.
     """
     try:
         with open(os.path.join(config_path, 'last_date.txt'), 'r') as f:
@@ -169,9 +166,9 @@ def configure_logging(config_path, log_level):
         datefmt='%Y-%m-%d %H:%M:%S')
     log_handler.setFormatter(log_format)
     logger.addHandler(log_handler)
-    # Lower requests module's log level so that OAUTH2 details aren't logged
+    # Lower requests module's log level so that OAUTH2 details aren't logged.
     logging.getLogger('requests').setLevel(logging.WARNING)
-    # Quieten SleekXMPP output
+    # Quieten SleekXMPP output.
     # logging.getLogger('sleekxmpp.xmlstream.xmlstream').setLevel(logging.INFO)
 
 
