@@ -6,6 +6,9 @@
 To use these commands with Yatse (Kodi remote control app for Android), create a Custom Command in Yatse:
 RunScript(special://home/addons/aquous_serial_control/aquos_cmd.py, -h)
 * Copy aquos_serial_control into the ~/.kodi/addons/ directory
+* Install pyserial to Kodi's python interpretor (may need to install pip first)
+* If get permission errors wrt opening serial port, add the user to the dialout group:
+sudo usermod -a -G dialout kodi
 
 テレビの「クイック起動」を有効にしないとリモコンでテレビを消した時にRS232でONコマンドを送信してもERRになる
 
