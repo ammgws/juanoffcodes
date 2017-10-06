@@ -40,7 +40,12 @@ def get_last_date(cache_path):
     except IOError as e:
         # TODO: better return value
         return None
-    return dt.datetime.strptime(last_date.strip(), '%Y%m%d').date()
+    return last_date
+
+
+def write_last_date(cache_path, last_event_str):
+    with open(os.path.join(cache_path, 'last_date'), 'w') as f:
+        f.write(last_event_str)
 
 
 def parse_loglevel(ctx, param, log_level_str):
@@ -152,7 +157,13 @@ def main(config_path, cache_path, cut_off, last_date, log_level):
         logging.info('No mails found from the past week')
         had_event_this_week = -1
 
-    last_event = get_last_date(config_path)
+    last_event_str = last_date or get_last_date(cache_path)
+    last_event = dt.datetime.strptime(last_event_str, '%Y%m%d').date()
+    if max(event_dates) > last_event:
+        last_event = max(event_dates)
+
+    write_last_date(cache_path, last_event.strftime('%Y%m%d'))
+
     if last_event >= (current_date - dt.timedelta(days=cut_off)).date():
                         had_event_this_week = 0
 
@@ -185,11 +196,6 @@ def main(config_path, cache_path, cut_off, last_date, log_level):
             logging.error('Unable to connect to Hangouts.')
     else:
         logging.info('Went to event in the past week - no need to send shaming message!')
-
-    if max(event_dates) > last_event:
-        last_event = max(event_dates)
-    with open(os.path.join(config_path, 'last_date.txt'), 'w') as f:
-        f.write(last_event.strftime('%Y%m%d'))
 
 
 def configure_logging(log_dir, log_level):
