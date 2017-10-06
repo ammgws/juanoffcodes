@@ -74,6 +74,8 @@ class AquosControl:
             response = self.send_rs232_command(CMD_POWR_ON)
         elif power_status == '1':
             response = self.send_rs232_command(CMD_POWR_OFF)
+        else:
+            response = None
         return response
 
     def prepare_for_htpc(self):
