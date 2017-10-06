@@ -9,6 +9,8 @@ import json
 import logging
 import os.path
 import re
+from configparser import ConfigParser
+from pathlib import Path
 from time import sleep
 # Third party
 import click
@@ -48,28 +50,55 @@ def parse_loglevel(ctx, param, log_level_str):
     return log_levels[log_level_str]
 
 
+
+
+def create_dir(ctx, param, directory):
+    if not os.path.isdir(directory):
+        os.makedirs(directory, exist_ok=True)
+    return directory
+
+
 @click.command()
-@click.option('--config_path', '-c', default=os.path.expanduser('~/.config/futsal_shamer'), type=click.Path(exists=True),
-              help='path to directory containing config file.')
-@click.option('--cut_off', '-c', default=7, help='Number of days to allow between attended events before shaming.')
-@click.option('--log_level', '-l', callback=parse_loglevel, expose_value=True,
-              default='debug', type=click.Choice(['debug', 'info', 'warning', 'error']), help='Set log level.')
-def main(config_path, cut_off, log_level):
-    """
-    Check Gmail for futsal confirmation emails, and send 'shame' message on Hangouts if haven't been in the past week.
+@click.option(
+    '--config-path',
+    type=click.Path(),
+    default=os.path.join(os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')), APP_NAME),
+    callback=create_dir,
+    help='Path to directory containing config file. Defaults to XDG config dir.',
+)
+@click.option(
+    '--cache-path',
+    type=click.Path(),
+    default=os.path.join(os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache')), APP_NAME),
+    callback=create_dir,
+    help='Path to directory to store logs and such. Defaults to XDG cache dir.',
+)
+def main(config_path, cache_path, cut_off, last_date, log_level):
+    """Check Gmail for futsal confirmation emails and send 'shame' message on Hangouts if haven't been in the past week.
 
     OAuth for devices doesn't support Hangouts or Gmail scopes, so have to send auth link through the terminal.
     https://developers.google.com/identity/protocols/OAuth2ForDevices
     """
-    configure_logging(config_path, log_level)
+    configure_logging(cache_path, log_level)
+
+    # TODO: config from env vars
 
     config_file = os.path.join(config_path, 'futsal.ini')
-    logging.debug('Using config file: %s', config_file)
+    logging.debug('Using config file: %s.', config_file)
+    config = ConfigParser()
+    config.read(config_file)
+    gmail_client_id = config.get('Gmail', 'client_id')
+    gmail_client_secret = config.get('Gmail', 'client_secret')
+    gmail_refresh_token = os.path.join(cache_path, 'gmail_refresh_token')
+    if not os.path.isfile(gmail_refresh_token):
+        Path(gmail_refresh_token).touch()
 
-    # Setup Google OAUTH instance for acccessing Gmail
-    oauth2_scope = ('https://www.googleapis.com/auth/gmail.readonly '
-                    'https://www.googleapis.com/auth/userinfo.email')
-    oauth = GoogleAuth(config_file, oauth2_scope, service='Gmail')
+    # Setup Google OAUTH instance for acccessing Gmail.
+    gmail_scopes = [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/userinfo.email',
+    ]
+    oauth = GoogleAuth(gmail_client_id, gmail_client_secret, gmail_scopes, gmail_refresh_token)
     oauth.authenticate()
 
     # Retrieves all messages received in the past x days:
@@ -129,8 +158,21 @@ def main(config_path, cut_off, log_level):
         message = 'Someone has been naughty. Last attended futsal or soccer was on {0}.'.format(
             last_event.strftime('%Y/%m/%d'))
 
-        # Setup Hangouts bot instance, connect and send message.
-        hangouts = HangoutsClient(config_file)
+        hangouts_client_id = config.get('Hangouts', 'client_id')
+        hangouts_client_secret = config.get('Hangouts', 'client_secret')
+        hangouts_refresh_token = os.path.join(cache_path, 'hangouts_refresh_token')
+        if not os.path.isfile(hangouts_refresh_token):
+            Path(hangouts_refresh_token).touch()
+
+        # Setup Google OAUTH instance for acccessing Gmail.
+        hangouts_scopes = [
+            'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/userinfo.email',
+        ]
+        oauth = GoogleAuth(hangouts_client_id, hangouts_client_secret, hangouts_scopes, hangouts_refresh_token)
+        oauth.authenticate()
+
+        hangouts = HangoutsClient(hangouts_client_id, hangouts_client_secret, hangouts_refresh_token)
         if hangouts.connect():
             hangouts.process(block=False)
             sleep(5)  # need time for Hangouts roster to update
@@ -148,14 +190,14 @@ def main(config_path, cut_off, log_level):
         f.write(last_event.strftime('%Y%m%d'))
 
 
-def configure_logging(config_path, log_level):
+def configure_logging(log_dir, log_level):
     # Configure root logger.
     logger = logging.getLogger()
     logger.setLevel(level=log_level)
 
-    log_folder = os.path.join(config_path, 'logs')
+    log_folder = os.path.join(log_dir, 'logs')
     if not os.path.exists(log_folder):
-        os.makedirs(log_folder, exist_ok=True)
+        os.makedirs(log_folder)
 
     log_filename = 'futsal_{0}.log'.format(dt.datetime.now().strftime('%Y%m%d_%Hh%Mm%Ss'))
     log_filepath = os.path.join(log_folder, log_filename)
