@@ -35,8 +35,8 @@ def get_last_date(cache_path):
     """Get the date of last attended event from the last time this script was run.
     """
     try:
-            last_date = f.readline()
         with open(os.path.join(cache_path, 'last_date')) as f:
+            last_date = f.read().strip()
     except IOError as e:
         # TODO: better return value
         return None
