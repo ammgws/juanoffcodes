@@ -212,15 +212,6 @@ def main(config_path, cache_path, cut_off, last_date, log_level):
     if had_event_this_week == -1:
         message = f'Someone has been naughty. Last attended futsal or soccer was on {last_event.strftime("%Y/%m/%d")}.'
 
-
-        # Setup Google OAUTH instance for acccessing Gmail.
-        hangouts_scopes = [
-            'https://www.googleapis.com/auth/gmail.readonly',
-            'https://www.googleapis.com/auth/userinfo.email',
-        ]
-        oauth = GoogleAuth(hangouts_client_id, hangouts_client_secret, hangouts_scopes, hangouts_refresh_token)
-        oauth.authenticate()
-
         hangouts = HangoutsClient(hangouts_client_id, hangouts_client_secret, hangouts_refresh_token)
         if hangouts.connect():
             hangouts.process(block=False)
