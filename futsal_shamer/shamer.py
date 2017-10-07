@@ -136,6 +136,11 @@ def main(config_path, cache_path, cut_off, last_date, log_level):
     gmail_refresh_token = os.path.join(cache_path, 'gmail_refresh_token')
     if not os.path.isfile(gmail_refresh_token):
         Path(gmail_refresh_token).touch()
+    hangouts_client_id = config.get('Hangouts', 'client_id')
+    hangouts_client_secret = config.get('Hangouts', 'client_secret')
+    hangouts_refresh_token = os.path.join(cache_path, 'hangouts_refresh_token')
+    if not os.path.isfile(hangouts_refresh_token):
+        Path(hangouts_refresh_token).touch()
 
     # Setup Google OAUTH instance for acccessing Gmail.
     gmail_scopes = [
@@ -207,11 +212,6 @@ def main(config_path, cache_path, cut_off, last_date, log_level):
     if had_event_this_week == -1:
         message = f'Someone has been naughty. Last attended futsal or soccer was on {last_event.strftime("%Y/%m/%d")}.'
 
-        hangouts_client_id = config.get('Hangouts', 'client_id')
-        hangouts_client_secret = config.get('Hangouts', 'client_secret')
-        hangouts_refresh_token = os.path.join(cache_path, 'hangouts_refresh_token')
-        if not os.path.isfile(hangouts_refresh_token):
-            Path(hangouts_refresh_token).touch()
 
         # Setup Google OAUTH instance for acccessing Gmail.
         hangouts_scopes = [
